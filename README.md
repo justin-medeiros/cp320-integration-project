@@ -1,2 +1,2 @@
-# cp320-integration-project
-The repo is for the codebase of the CP320 Integration Project
+# CP320 Integration Project
+This project works with a raspberry pi to integrate 2 input and 2 output devices that will work simultaneously
