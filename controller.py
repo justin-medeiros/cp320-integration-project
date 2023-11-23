@@ -3,6 +3,7 @@ import time
 import threading
 import smbus
 from datetime import datetime
+import os
 
 # Input devices
 MOTOR = 0
@@ -147,12 +148,11 @@ class Controller:
             motor_thread.join()
             dist_thread.join()
             led_thread.join()
-
         except KeyboardInterrupt:
             print("Keyboard interrupt detected. Exiting...")
         finally:
             self.cleanup()
-        return
+            os._exit(0)
 
 
     def get_user_input(self):
@@ -185,7 +185,7 @@ class Controller:
 
             if user_input == "q":
                 break
-
+        
     """ 
         Checks what user has been inputting
         returns False if user has inputted 'q'
@@ -360,7 +360,7 @@ class Controller:
 
     def cleanup(self):
         self.reset_motor()
-        #self.pwn_led.stop()
+        self.pwn_led.stop()
         GPIO.cleanup()
         print("Finished cleaning up")
         return
