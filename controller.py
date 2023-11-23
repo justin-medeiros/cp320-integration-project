@@ -37,6 +37,9 @@ SPEED_OF_SOUND=330/float(1000000)
 
 class Controller:
     def __init__(self, dist_trigger_pin, dist_echo_pin, led_pin, motor_pins):
+        all_pins = [dist_trigger_pin, dist_echo_pin, led_pin] + motor_pins
+        assert len(all_pins) == len(set(all_pins)), "All pins must be unique."
+
         # Initialize pins
         self.dist_trigger_pin = dist_trigger_pin
         self.dist_echo_pin = dist_echo_pin
