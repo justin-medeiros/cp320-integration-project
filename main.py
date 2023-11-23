@@ -3,7 +3,7 @@ from controller import Controller
 MOTOR_PINS = [21, 20, 26, 19]
 TRIG_PIN = 18
 ECHO_PIN = 16
-LED_PIN = 
+#LED_PIN = 
 
 
 def main():

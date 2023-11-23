@@ -51,10 +51,10 @@ class Controller:
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.dist_trigger_pin, GPIO.OUT)
+        """ GPIO.setup(self.dist_trigger_pin, GPIO.OUT)
         GPIO.setup(self.dist_echo_pin, GPIO.IN)
+        GPIO.setup(self.motor_pins, GPIO.OUT) """
         GPIO.setup(led_pin, GPIO.OUT)
-        GPIO.setup(self.motor_pins, GPIO.OUT)
 
         # Initialize stepper sequence
         self.stepper_sequence=[
@@ -82,12 +82,12 @@ class Controller:
 
         # Led variables
         self.led_on = True # Flag to turn led on/off
-        #self.pwn_led = GPIO.PWM(led_pin, FREQUENCY) # PWM object for led
+        self.pwn_led = GPIO.PWM(led_pin, FREQUENCY) # PWM object for led
         self.led_duty_cycle = None
         self.led_duty_cycle_lock = threading.Lock() # Lock to change led duty cycle
 
         # Potentiometer variables
-        #self.bus = smbus.SMBus(1)
+        self.bus = smbus.SMBus(1)
         self.potentiometer_address = ADDRESS
         self.potentiometer_register = POTENTIOMETER_SENSOR
     
@@ -103,13 +103,14 @@ class Controller:
         user_input_thread.start()
 
         motor_thread = threading.Thread(target=self.operate_motor)
-        motor_thread.start()
+        motor_thread.start() """
 
         led_thread = threading.Thread(target=self.operate_led)
-        led_thread.start() """
+        led_thread.start() 
 
         while True:
-            if input("Enter q to quit: ") == "q":
+            print('Getting reading')
+            if input("enter q to break") == 'q':
                 break
             """ with self.user_input_lock:
                 user_input = self.user_input
@@ -120,16 +121,16 @@ class Controller:
                 self.switch_output() """
 
             # Get input values from sensors
-            distance_value = self.read_distance_sensor()
-            #potentiometer_value = self.read_potentiometer()
+            #distance_value = self.read_distance_sensor()
+            potentiometer_value = self.read_potentiometer()
 
             # Set output values based on self.input_to_output
             sleep_time = None
             #led_duty_cycle = None
             if self.input_to_output[DIST_SENSOR] == MOTOR:
-                sleep_time = self.calc_dist_sleep_time(distance_value)
-                print(sleep_time)
-                #led_duty_cycle = self.calc_potent_duty_cycle(potentiometer_value)
+                #sleep_time = self.calc_dist_sleep_time(distance_value)
+                #print(sleep_time)
+                led_duty_cycle = self.calc_potent_duty_cycle(potentiometer_value)
             else:
                 pass
                 #sleep_time = self.calc_potent_sleep_time(potentiometer_value)
@@ -137,14 +138,14 @@ class Controller:
 
             # Set values
             #self.set_lock(self.motor_sleep_lock, 'motor_sleep', sleep_time)
-            #self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', led_duty_cycle)
+            self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', led_duty_cycle)
 
             # Sleep
             time.sleep(0.1)
 
         """ user_input_thread.join()
-        motor_thread.join()
-        led_thread.join() """
+        motor_thread.join() """
+        led_thread.join() 
         self.cleanup()
 
     def get_user_input(self):
