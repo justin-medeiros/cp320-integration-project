@@ -49,10 +49,11 @@ class Controller:
         self.dist_echo_pin = dist_echo_pin
         self.motor_pins = motor_pins
         self.led_pin = led_pin
-        self.input_to_output = {
-            DIST_SENSOR: MOTOR,
-            POTENTIOMETER: LED
-        }
+
+        # 1 = potent -> led, dist -> motor
+        # 2 = potent -> motor, dist -> led
+        self.in_to_out_lock = threading.Lock() # Lock to change input-to-output mapping
+        self.in_to_out = 1
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BCM)
@@ -102,12 +103,6 @@ class Controller:
         self.distance = None
         self.distance_lock = threading.Lock() # Lock to change distance
 
-    def switch_output(self):
-        # Swap input-to-output mappings
-        for input_device, output_device in self.input_to_output.items():
-            self.input_to_output[input_device] = (output_device + 1) % len(self.OUTPUT_DEVICES)
-
-
     def run(self):
         # Start threads to get user input at any time
         user_input_thread = threading.Thread(target=self.get_user_input)
@@ -124,47 +119,38 @@ class Controller:
 
         try:
             while True:
-                with self.user_input_lock:
-                    user_input = self.user_input
-
-                if user_input == "q":
+                if self.check_input() is False:
                     break
-                elif user_input == "s":
-                    print("DO THIS SWITCGH")
-                    # self.switch_output()
 
                 # Get input values from sensors
                 distance_value = self.get_dist_reading()
-                print('Ok why')
-                #potentiometer_value = self.read_potentiometer()
+                potentiometer_value = self.read_potentiometer()
 
-                # Set output values based on self.input_to_output
+                # Set output values based on self.in_to_out
                 sleep_time = None
-                #led_duty_cycle = None
-                if self.input_to_output[DIST_SENSOR] == MOTOR:
+                led_duty_cycle = None
+                if self.in_to_out == 1:
                     sleep_time = self.calc_dist_sleep_time(distance_value)
-                    print(sleep_time)
-                    #led_duty_cycle = self.calc_potent_duty_cycle(potentiometer_value)
+                    led_duty_cycle = self.calc_potent_duty_cycle(potentiometer_value)
                 else:
-                    pass
-                    #sleep_time = self.calc_potent_sleep_time(potentiometer_value)
-                    #led_duty_cycle = self.calc_dist_duty_cycle(distance_value)
+                    sleep_time = self.calc_potent_sleep_time(potentiometer_value)
+                    led_duty_cycle = self.calc_dist_duty_cycle(distance_value)
 
                 # Set values
                 self.set_lock(self.motor_sleep_lock, 'motor_sleep', sleep_time)
-                #self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', led_duty_cycle)
+                self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', led_duty_cycle)
 
                 # Sleep
-                time.sleep(2)
+                time.sleep(0.5)
 
             user_input_thread.join()
             motor_thread.join()
+            dist_thread.join()
             led_thread.join()
 
         except KeyboardInterrupt:
-            pass
+            print("Keyboard interrupt detected. Exiting...")
         finally:
-            print('hello clean up')
             self.cleanup()
         return
 
@@ -173,11 +159,63 @@ class Controller:
         while True:
             if self.read_lock(self.stop_lock, 'stop'):
                 break
-            # Get user input
-            user_input = input("Enter input: ")
-            self.set_lock(self.user_input_lock, 'user_input', user_input)
-            time.sleep(0.5)
 
+            if self.read_lock(self.user_input_lock, 'user_input') is not None:
+                continue
+
+            selected_option = self.read_lock(self.in_to_out_lock, 'in_to_out')
+            print('selected option', selected_option)
+
+            # Modify the prompt based on the selected option
+            prompt_lines = [
+                '1. Potentiometer controls LED brightness and distance sensor controls motor',
+                '2. Distance sensor controls LED brightness and potentioemeter controls motor',
+                'q. Quit'
+            ]
+            if selected_option == 1:
+                prompt_lines[0] = '-> ' + prompt_lines[0]
+            elif selected_option == 2:
+                prompt_lines[1] = '-> ' + prompt_lines[1]
+
+            # Get user input
+            user_input = input('\n'.join(prompt_lines) + '\nSelect an option: ')
+            self.set_lock(self.user_input_lock, 'user_input', user_input)
+
+            if user_input == "q":
+                break
+
+    """ 
+        Checks what user has been inputting
+        returns False if user has inputted 'q'
+    """
+    def check_input(self):
+        with self.user_input_lock:
+            with self.in_to_out_lock:
+                user_input = self.user_input
+                # Break out early if no input has been given
+                if user_input is None:
+                    return True
+
+                in_to_out = self.in_to_out
+
+                if user_input == "q":
+                    self.set_lock(self.stop_lock, 'stop', True)
+                    print("Quitting...")
+                    return False
+                else:
+                    try:
+                        user_input = int(user_input)
+                        if user_input == in_to_out:
+                            print("Output already set to {}".format(user_input))
+                        elif user_input == 1 or user_input == 2:
+                            self.in_to_out = user_input
+                            print("Switching output...")
+                    except ValueError:
+                        print("Invalid input")
+
+                # Need to reset user input to None
+                self.user_input = None
+                return True
 
     def get_dist_reading(self):
         distance = self.read_lock(self.distance_lock, 'distance')
@@ -185,6 +223,9 @@ class Controller:
 
     def read_distance_sensor(self):
         while True:
+            if self.read_lock(self.stop_lock, 'stop'):
+                break
+
             GPIO.output(self.dist_trigger_pin, GPIO.HIGH)
             time.sleep(HIGH_TIME)
             GPIO.output(self.dist_trigger_pin, GPIO.LOW)
@@ -206,7 +247,6 @@ class Controller:
         self.bus.write_byte(self.potentiometer_address, self.potentiometer_register)
         return self.bus.read_byte(self.potentiometer_address)
 
-
     """
         Turn the motor based on the angle given
     """
@@ -216,12 +256,12 @@ class Controller:
             while True:
                 if self.read_lock(self.stop_lock, 'stop'):
                     break
-
-                GPIO.output(self.motor_pins, self.stepper_sequence[i])
-                self.step_count += 1
                 sleep_time = self.read_lock(self.motor_sleep_lock, 'motor_sleep')
                 if sleep_time == None:
                     continue
+
+                GPIO.output(self.motor_pins, self.stepper_sequence[i])
+                self.step_count += 1
                 time.sleep(sleep_time)
                 self.last_step_idx = i
                 i+=1
@@ -230,27 +270,21 @@ class Controller:
                     i = 0
 
         except KeyboardInterrupt:
-            self.cleanup()
             print("Broke out while rotating")
+            self.cleanup()
 
     def operate_led(self):
-        prev_value = None
-
         try:
 
             # Initial reading of the start value for the PWM
             value = self.read_potentiometer()
 
-            # Set the previous value
-            prev_value = value
-
             # Set the initial value of the duty cycle
-            self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', value)
+            start_duty_cycle = self.calc_potent_duty_cycle(value)
+            self.set_lock(self.led_duty_cycle_lock, 'led_duty_cycle', start_duty_cycle)
 
             # Set the start value for the PWM and start the duty cycle
-            start_duty_cycle = self.calc_potent_duty_cycle(value)
             self.pwn_led.start(start_duty_cycle)
-            print("START:%1.3f  " %(start_duty_cycle))
 
             while True:
                 if self.read_lock(self.stop_lock, 'stop'):
@@ -258,15 +292,16 @@ class Controller:
                 duty_cycle = self.read_lock(self.led_duty_cycle_lock, 'led_duty_cycle')
                 if duty_cycle == None:
                     continue
-                self.pwn_led.ChangeDutyCycle(self.read_lock(self.led_duty_cycle_lock, 'led_duty_cycle'))
+                self.pwn_led.ChangeDutyCycle(duty_cycle)
         except KeyboardInterrupt:
+            print("Broke out while changing LED brightness")
             self.cleanup()
-            pass
 
     """
         This method is used to reset the motor to its original position.
     """
     def reset_motor(self):
+        print('Resetting motor...')
         steps_taken = self.step_count % FULL_ROTATION_STEPS
         reverse_steps = self.stepper_sequence[::-1]
         i = 0
@@ -323,8 +358,9 @@ class Controller:
 
     def cleanup(self):
         self.reset_motor()
-        self.pwn_led.stop()
+        #self.pwn_led.stop()
         GPIO.cleanup()
+        print("Finished cleaning up")
         return
 
     def get_distance(self, td):
