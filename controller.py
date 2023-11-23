@@ -164,18 +164,20 @@ class Controller:
                 continue
 
             selected_option = self.read_lock(self.in_to_out_lock, 'in_to_out')
-            print('selected option', selected_option)
+            print('Your selected option:', selected_option)
 
             # Modify the prompt based on the selected option
             prompt_lines = [
+                'These are the options you can select',
                 '1. Potentiometer controls LED brightness and distance sensor controls motor',
                 '2. Distance sensor controls LED brightness and potentioemeter controls motor',
-                'q. Quit'
+                'q. Quit',
+                '-------------------------------------'
             ]
             if selected_option == 1:
-                prompt_lines[0] = '-> ' + prompt_lines[0]
+                prompt_lines[2] =  prompt_lines[2] + '(SELECTED)'
             elif selected_option == 2:
-                prompt_lines[1] = '-> ' + prompt_lines[1]
+                prompt_lines[3] = prompt_lines[3] + '(SELECTED)'
 
             # Get user input
             user_input = input('\n'.join(prompt_lines) + '\nSelect an option: ')
