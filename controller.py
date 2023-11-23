@@ -52,7 +52,7 @@ class Controller:
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BCM)
-        """ GPIO.setup(self.dist_trigger_pin, GPIO.OUT)
+        """ GPIO.setup(self.dist_trigger_pin, GPIO.OUT)"""
         GPIO.setup(self.dist_echo_pin, GPIO.IN)
         GPIO.setup(self.led_pin, GPIO.OUT)
         GPIO.setup(self.motor_pins, GPIO.OUT)
