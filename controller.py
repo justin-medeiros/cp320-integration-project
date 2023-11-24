@@ -26,6 +26,7 @@ FREQUENCY = 50
 # Potentiometer constants
 ADDRESS = 0x48
 POTENTIOMETER_SENSOR = 0x43
+DUTY_CYCLE_VAL = 255
 
 # Distance sensor constants
 HIGH_TIME=0.000001
@@ -164,20 +165,19 @@ class Controller:
                 continue
 
             selected_option = self.read_lock(self.in_to_out_lock, 'in_to_out')
-            print('Your selected option:', selected_option)
 
             # Modify the prompt based on the selected option
             prompt_lines = [
                 'These are the options you can select',
                 '1. Potentiometer controls LED brightness and distance sensor controls motor',
-                '2. Distance sensor controls LED brightness and potentioemeter controls motor',
+                '2. Distance sensor controls LED brightness and potentiometer controls motor',
                 'q. Quit',
                 '-------------------------------------'
             ]
             if selected_option == 1:
-                prompt_lines[2] =  prompt_lines[2] + '(SELECTED)'
+                prompt_lines[1] = prompt_lines[1] + '(SELECTED)'
             elif selected_option == 2:
-                prompt_lines[3] = prompt_lines[3] + '(SELECTED)'
+                prompt_lines[2] = prompt_lines[2] + '(SELECTED)'
 
             # Get user input
             user_input = input('\n'.join(prompt_lines) + '\nSelect an option: ')
@@ -268,7 +268,7 @@ class Controller:
                 self.last_step_idx = i
                 i+=1
 
-                if i > 7:
+                if i > len(self.stepper_sequence) - 1:
                     i = 0
 
         except KeyboardInterrupt:
@@ -310,7 +310,7 @@ class Controller:
         try:
             while i < steps_taken:
                 i += 1
-                GPIO.output(self.motor_pins, reverse_steps[(self.last_step_idx + i) % 8])
+                GPIO.output(self.motor_pins, reverse_steps[(self.last_step_idx + i) % len(self.stepper_sequence)])
                 time.sleep(SLEEP_TIME)
             self.last_step_idx = 0
             self.step_count = 0
@@ -332,7 +332,7 @@ class Controller:
             return getattr(self, flag)
 
     def calc_potent_duty_cycle(self, potent_value):
-        return (potent_value / 255.0) * 100
+        return (potent_value / DUTY_CYCLE_VAL) * 100
 
     def calc_dist_duty_cycle(self, dist):
         if dist is None:
@@ -345,7 +345,7 @@ class Controller:
 
     def calc_potent_sleep_time(self, val):
         min_sleep_time = SLEEP_TIME
-        return min_sleep_time + (MAX_SLEEP_TIME - min_sleep_time) * (val / 255.0)
+        return min_sleep_time + (MAX_SLEEP_TIME - min_sleep_time) * (val / DUTY_CYCLE_VAL)
 
     def calc_dist_sleep_time(self, distance):
         if distance is None:

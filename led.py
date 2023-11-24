@@ -9,7 +9,7 @@ def calculate_duty_cycle(value):
 
 def potentiometer_sensor_change():
     FREQUENCY = 50
-    LED_PIN_NUMBER_BCM = 20
+    LED_PIN_NUMBER_BCM = 23
     ADDRESS = 0x48
     POTENTIOMETER_SENSOR = 0x43
     bus = smbus.SMBus(1)
